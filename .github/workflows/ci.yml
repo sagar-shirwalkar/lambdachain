@@ -40,6 +40,7 @@ jobs:
           cabal-version: "3.14.2.0"
           enable-stack: true
           stack-version: "3.7.1"
+      - run: cabal update
       - run: cabal freeze  # Generate consistent dependency plan
       - name: Cache Cabal store and dist
         uses: actions/cache@v3 # stores files temporarily (up to 7 days if unused) and reuses them across runs.
@@ -50,6 +51,5 @@ jobs:
           key: ${{ runner.os }}-ghc-9.6.7-cabal-${{ hashFiles('cabal.project.freeze') }}
           restore-keys: |
             ${{ runner.os }}-ghc-9.6.7-cabal-
-      - run: cabal update
       - run: cabal build --enable-tests
       - run: cabal test
