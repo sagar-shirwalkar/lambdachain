@@ -1,5 +1,8 @@
-name: CI
+name: Haskell CI
 on:
+  workflow_run:
+    workflows: ["OSV Scanner"]
+    types: [completed]
   push:
     paths:
       - ".github/**"
@@ -16,6 +19,9 @@ on:
       - "lambdachain.cabal"
 jobs:
   build:
+    if: |
+      github.event.workflow_run.conclusion == 'success' ||
+      github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       # Binary keys should be Base64 encoded in GitHub Secrets
