@@ -1,0 +1,81 @@
+# Haskell/Cabal build artifacts
+dist/
+dist-newstyle/
+cabal-dev
+.cabal-sandbox/
+cabal.sandbox.config
+.cabal-sandbox.config
+cabal.project.local
+cabal.project.local~
+cabal.project.freeze
+.ghc.environment.*
+
+# Stack build artifacts
+.stack-work/
+.stack-work/
+stack.yaml.lock
+.darcs/
+.hpc
+.hsenv
+.cabal/
+
+# GHC/HCi artifacts
+*.hi
+*.chi
+*.chs.h
+*.dyn_h
+*.dyn_o
+*.hie
+*.hp
+*.prof
+*.tix
+*.o
+*.a
+*.so
+
+# Generated files
+TAGS
+tags
+tags.tags
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project-specific
+*.log
+*.sqlite
+*.db
+node_modules/
+
+# Backup files
+*.backup
+*.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Compiled Object files
+*.o
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch

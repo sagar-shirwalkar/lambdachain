@@ -1,0 +1,52 @@
+name:           lambdachain
+version:        0.1.0.0
+cabal-version:  >= 1.8
+description:    A simple blockchain implementation with ZKP and security features
+author:         Sagar Shirwalkar
+maintainer:     https://github.com/sagar-shirwalkar
+category:       Development
+build-type:     Simple
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Block.Block
+                      , Blockchain.Blockchain
+                      , Consensus.Consensus
+                      , Hash.Hash
+                      , MerkleTree.MerkleTree
+                      , Network.Network
+                      , Security.Security
+                      , Security.HomomorphicEncryption
+                      , ZKP.ZKP
+  other-modules:       
+  ghc-options:         -Wall
+  build-depends:       base >=4.7 && <5
+                    , cryptonite
+                    , time
+                    , containers
+                     , blake2
+                     , bytestring
+                     , aeson
+                     , network
+
+executable lambdachain-exe
+    hs-source-dirs:      src/app
+    main-is:             Main.hs
+    ghc-options:         -Wall -threaded -rtsopts
+    build-depends:       base >=4.7 && <5
+                       , lambdachain
+                       , warp
+                       , wai
+                       , http-types
+                       , aeson
+                       , bytestring
+
+test-suite lambdachain-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Main.hs
+  build-depends:       base >=4.7 && <5
+                     , lambdachain
+                     , hspec >=2.0
+                     , QuickCheck >=2.8
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
