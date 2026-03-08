@@ -1,5 +1,11 @@
 # LambdaChain
 
+![Haskell](https://img.shields.io/badge/Haskell-5e5086?style=flat-square&logo=haskell&logoColor=white)
+![GHC](https://img.shields.io/badge/GHC-9.6.7-fbbb2b?style=flat-square)
+![GitHub branch status](https://img.shields.io/github/checks-status/sagar-shirwalkar/lambdachain/main?style=flat-square)
+![GitHub Tag](https://img.shields.io/github/v/tag/sagar-shirwalkar/lambdachain?style=flat-square&color=green)
+![GitHub License](https://img.shields.io/github/license/sagar-shirwalkar/lambdachain?style=flat-square&color=purple)
+
 A Haskell-based blockchain implementation with advanced security features including Zero-Knowledge Proofs (ZKP), homomorphic encryption, Merkle trees, and Proof-of-Work consensus mechanism.
 
 ## Features
@@ -20,6 +26,7 @@ A Haskell-based blockchain implementation with advanced security features includ
 ### Required Software
 
 1. **Haskell GHC**: The Glasgow Haskell Compiler
+
    ```bash
    # macOS (Homebrew)
    brew install ghc
@@ -31,6 +38,7 @@ A Haskell-based blockchain implementation with advanced security features includ
    ```
 
 2. **Cabal**: Haskell build system
+
    ```bash
    # macOS (Homebrew)
    brew install cabal-install
@@ -42,6 +50,7 @@ A Haskell-based blockchain implementation with advanced security features includ
    ```
 
 3. **Stack** (Alternative build tool - recommended)
+
    ```bash
    curl -sSL https://get.haskellstack.org/ | sh
    ```
@@ -170,11 +179,13 @@ let decrypted = decryptData "encryption key" encrypted
 ## Security Considerations
 
 ### Current Implementation
+
 - XOR-based encryption (for demonstration purposes only)
 - Basic ZKP structure (verification logic needs production implementation)
 - Proof-of-Work consensus (secure difficulty adjustment needed)
 
 ### Production Recommendations
+
 1. **Replace XOR encryption** with industry-standard algorithms (AES, RSA)
 2. **Implement proper ZKP verification** with cryptographic libraries
 3. **Add transaction signing** (digital signatures)
@@ -250,7 +261,7 @@ See `lambdachain.cabal` for the complete list of dependencies:
 
 ## License
 
-This project is provided as-is for demonstration purposes.
+Released under [MIT](/LICENSE) by [@sagar-shirwalkar](https://github.com/sagar-shirwalkar).
 
 ## Contributing
 
