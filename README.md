@@ -1,10 +1,10 @@
 # LambdaChain
 
-![Haskell](https://img.shields.io/badge/Haskell-5e5086?style=flat-square&logo=haskell&logoColor=white)
-![GHC](https://img.shields.io/badge/GHC-9.6.7-fbbb2b?style=flat-square)
-![GitHub branch status](https://img.shields.io/github/checks-status/sagar-shirwalkar/lambdachain/main?style=flat-square)
-![GitHub Tag](https://img.shields.io/github/v/tag/sagar-shirwalkar/lambdachain?style=flat-square&color=green)
-![GitHub License](https://img.shields.io/github/license/sagar-shirwalkar/lambdachain?style=flat-square&color=purple)
+![Haskell](https://img.shields.io/badge/Haskell-5e5086?style=for-the-badge&logo=haskell&logoColor=white)
+![GHC](https://img.shields.io/badge/GHC-9.6.7-fbbb2b?style=for-the-badge)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/sagar-shirwalkar/lambdachain/ci.yml?style=for-the-badge)
+![GitHub Tag](https://img.shields.io/github/v/tag/sagar-shirwalkar/lambdachain?style=for-the-badge&color=blue)
+![GitHub License](https://img.shields.io/github/license/sagar-shirwalkar/lambdachain?style=for-the-badge&color=purple)
 
 A Haskell-based blockchain implementation with security features including Zero-Knowledge Proofs (ZKP), homomorphic encryption, Merkle trees, and Proof-of-Work Consensus mechanism.
 
