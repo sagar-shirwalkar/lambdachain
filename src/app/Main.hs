@@ -1,17 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Main where
 
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Network.HTTP.Types
-import Control.Monad ((<=<))
 import qualified Data.ByteString()
 import qualified Data.ByteString.Lazy ()
 import Data.Aeson
 import GHC.Generics()
-import Network.Wai ()
 
 import Blockchain.Blockchain
 import Block.Block()

@@ -13,13 +13,14 @@ A Haskell-based blockchain implementation with security features including Zero-
 - **Blockchain Core**: Complete blockchain implementation with block structure, chain validation, and chain management
 - **Proof-of-Work Consensus**: Secure consensus mechanism with difficulty adjustment
 - **Merkle Trees**: Efficient transaction verification using Merkle tree data structure
-- **Cryptographic Security**: 
-  - BLAKE2b hashing algorithm
-  - Zero-Knowledge Proofs for private transactions
-  - Homomorphic encryption for sensitive data
+- **Cryptographic Security**:
+  - Salted BLAKE2b hashing for robust data integrity
+  - Ed25519 signature-based Zero-Knowledge Proofs for secure private transactions
+  - Industry-standard AES-256 GCM homomorphic-like encryption for sensitive data
+  - Secure environment-based key management with GitHub Actions compatibility
 - **Network Layer**: P2P communication for blockchain data exchange
 - **REST API**: Web server interface for blockchain operations
-- **Security Features**: Private transactions, encryption/decryption, ZKP verification
+- **Security Features**: Private transactions, authenticated encryption, ZKP verification, and salted hashes
 
 ## Prerequisites
 
@@ -157,42 +158,59 @@ let updatedBlockchain = addBlock blockchain ["Transaction 1", "Transaction 2"]
 ```haskell
 import Security.Security
 
--- Create a private transaction with ZKP
-let zkp = createPrivateTransaction "Secret transaction data"
+-- Create a private transaction with Ed25519-based ZKP
+-- Automatically uses environment-loaded keys
+zkp <- createPrivateTransaction "Secret transaction data"
 
 -- Verify the transaction
-let isValid = verifyPrivateTransaction zkp
+isValid <- verifyPrivateTransaction zkp
 ```
 
-### Homomorphic Encryption
+### AES-256 Encryption
 
 ```haskell
 import Security.HomomorphicEncryption
 
--- Encrypt sensitive data
-let encrypted = encryptData "sensitive data" "encryption key"
+-- Encrypt sensitive data using AES-256 GCM
+let key = "secure-key-32-chars-long-exactly"
+let encrypted = encryptData "sensitive data" key
 
 -- Decrypt the data
-let decrypted = decryptData "encryption key" encrypted
+let decrypted = decryptData key encrypted
 ```
 
-## Security Considerations
+### Salted Hashing
 
-### Current Implementation
+```haskell
+import Hash.Hash
 
-- XOR-based encryption (for demonstration purposes only)
-- Basic ZKP structure (verification logic needs production implementation)
-- Proof-of-Work consensus (secure difficulty adjustment needed)
+-- Create a salted hash of the input
+-- Uses HASH_SALT from environment if available
+let saltedHash = secureHash "my data"
+```
+
+## Security Implementation
+
+### Cryptographic Stack
+
+- **AES-256 GCM**: Replaced basic XOR obfuscation with authenticated AES encryption for data confidentiality.
+- **Ed25519 ZKPs**: Implemented signature-based Zero-Knowledge Proofs using the high-performance Ed25519 elliptic curve.
+- **Salted Hashing**: Added support for configurable salts via environment variables to protect against rainbow table attacks.
+- **Key Management**: Implemented `KeyEnv` for loading secrets from GitHub environment variables with Base64 decoding support and safe fallbacks.
+
+### Environment Configuration
+
+The application loads the following environment variables:
+
+- `ZKP_SIGNING_KEY`: Base64 encoded 32-byte secret key for ZKP signatures.
+- `HASH_SALT`: Base64 encoded salt for cryptographic hashing.
 
 ### Production Recommendations
 
-1. **Replace XOR encryption** with industry-standard algorithms (AES, RSA)
-2. **Implement proper ZKP verification** with cryptographic libraries
-3. **Add transaction signing** (digital signatures)
-4. **Implement persistent storage** (database backend)
-5. **Add rate limiting** and input validation for network requests
-6. **Use proper random number generation** for cryptographic operations
-7. **Add Sybil attack protection** in the consensus mechanism
+1. **Rotate Signing Keys** regularly using GitHub Secrets.
+2. **Implement persistent storage** (database backend).
+3. **Add rate limiting** and input validation for network requests.
+4. **Add Sybil attack protection** in the consensus mechanism.
 
 ## Performance Optimizations
 

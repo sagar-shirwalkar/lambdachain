@@ -1,3 +1,6 @@
+# Local env
+.env
+
 # Haskell/Cabal build artifacts
 dist/
 dist-newstyle/

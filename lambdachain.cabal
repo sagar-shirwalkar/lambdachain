@@ -17,17 +17,21 @@ library
                       , Network.Network
                       , Security.Security
                       , Security.HomomorphicEncryption
+                      , Security.KeyEnv
                       , ZKP.ZKP
   other-modules:       
   ghc-options:         -Wall
   build-depends:       base >=4.7 && <5
                     , cryptonite
+                    , bytestring
                     , time
                     , containers
-                     , blake2
-                     , bytestring
-                     , aeson
-                     , network
+                    , blake2
+                    , bytestring
+                    , aeson
+                    , network
+                    , base64-bytestring
+                    , memory
 
 executable lambdachain-exe
     hs-source-dirs:      src/app
@@ -47,6 +51,8 @@ test-suite lambdachain-test
   main-is:             Main.hs
   build-depends:       base >=4.7 && <5
                      , lambdachain
+                     , cryptonite
+                     , bytestring
                      , hspec >=2.0
                      , QuickCheck >=2.8
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N

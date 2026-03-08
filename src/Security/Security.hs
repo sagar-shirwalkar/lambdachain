@@ -2,29 +2,30 @@ module Security.Security where
 
 import ZKP.ZKP
 import Security.HomomorphicEncryption
+import Security.KeyEnv
+import qualified Data.ByteString.Char8 as BC
+import Crypto.PubKey.Ed25519
 
--- Function to create a private transaction
-createPrivateTransaction :: String -> ZKP
-createPrivateTransaction transaction = 
-  let 
-    zkp = createZKP transaction "proof"
-  in 
-    zkp
+createPrivateTransaction :: String -> IO ZKP
+createPrivateTransaction transaction = do
+  txnSecretKey <- getKey :: IO SecretKey
+  let txBytes = BC.pack transaction
+  return $ generateEd25519ZKProof txBytes txnSecretKey
 
--- Function to verify a private transaction
-verifyPrivateTransaction :: ZKP -> Bool
-verifyPrivateTransaction zkp = verifyZKP zkp
+verifyPrivateTransaction :: ZKP -> IO Bool
+verifyPrivateTransaction zkp = do
+  txnPublicKey <- getKey :: IO PublicKey
+  return $ verifyEd25519ZKP zkp txnPublicKey
 
--- Function to create an encrypted transaction
-createEncryptedTransaction :: String -> String -> (ZKP, EncryptedData)
-createEncryptedTransaction transaction key = 
-  let zkp = generateZKProof transaction key
-      encrypted = encryptData transaction key
-  in (zkp, encrypted)
+createEncryptedTransaction :: String -> String -> IO (ZKP, EncryptedData)
+createEncryptedTransaction transaction key = do
+  zkp <- createPrivateTransaction transaction
+  let encrypted = encryptData transaction key
+  return (zkp, encrypted)
 
--- Function to verify and decrypt a transaction
-verifyAndDecrypt :: ZKP -> String -> EncryptedData -> Maybe String
-verifyAndDecrypt zkp key encryptedData = 
-  if verifyZKP zkp
-    then Just (decryptData key encryptedData)
-    else Nothing
+verifyAndDecrypt :: ZKP -> String -> EncryptedData -> IO (Maybe String)
+verifyAndDecrypt zkp key encryptedData = do
+  valid <- verifyPrivateTransaction zkp
+  if valid
+    then return $ Just (decryptData key encryptedData)
+    else return Nothing

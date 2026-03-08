@@ -1,8 +1,10 @@
-module Main where
+module Main (main) where
 
 import Test.Hspec
 import Test.QuickCheck
 import Data.List (isPrefixOf)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
 
 import Block.Block
 import Blockchain.Blockchain
@@ -12,6 +14,8 @@ import MerkleTree.MerkleTree
 import Security.Security
 import Security.HomomorphicEncryption
 import ZKP.ZKP
+import Crypto.PubKey.Ed25519 (SecretKey, PublicKey, toPublic, secretKey)
+import Crypto.Error (CryptoFailable(..))
 
 main :: IO ()
 main = hspec $ do
@@ -69,12 +73,18 @@ main = hspec $ do
       take difficulty (blockHash latest) `shouldBe` target
 
   describe "Security" $ do
-    it "encrypts and decrypts data" $ do
-      let key = "secretkey"
-      let data' = "sensitive data"
-      let encrypted = encryptData data' key
-      decryptData key encrypted `shouldBe` data'
+    it "encrypts and decrypts data with AES-GCM" $ do
+      let key = "testkey1234567890testkey12345678"
+      let plaintext = "sensitive data"
+      let encrypted = encryptData plaintext key
+      decryptData key encrypted `shouldBe` plaintext
 
-    it "verifies private transaction ZKP" $ do
-      let zkp = createPrivateTransaction "tx"
-      verifyPrivateTransaction zkp `shouldBe` True
+    it "verifies private transaction ZKP with Ed25519" $ do
+      let seed = B.replicate 32 0
+      case secretKey seed of
+        CryptoPassed sk -> do
+          let pk = toPublic sk
+          let tx = "tx"
+          let zkp = generateEd25519ZKProof (BC.pack tx) sk
+          verifyEd25519ZKP zkp pk `shouldBe` True
+        CryptoFailed err -> expectationFailure $ "Failed to create secret key: " ++ show err
