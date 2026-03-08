@@ -2,6 +2,12 @@ name: Deploy to Production
 on:
   push:
     branches: [main]
+    paths:
+      - ".github/**"
+      - "stack.yaml"
+      - "src/**"
+      - "test/**"
+      - "lambdachain.cabal"
 
 jobs:
   deploy:
