@@ -22,7 +22,7 @@ jobs:
         --recursive
         --lockfile=stack.yaml.lock
         .
-  sos-scan-hs-pr:
+  osv-scan-hs-pr:
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.3.3
     with:
@@ -30,3 +30,20 @@ jobs:
         --recursive
         --lockfile=stack.yaml.lock
         .
+  check-scan-statuses:
+    runs-on: ubuntu-latest
+    needs:
+      - osv-scan-hs
+      - osv-scan-hs-pr
+    # Always runs
+    if: always()
+    steps:
+      - name: Evaluate previous scan statuses
+        run: |
+          if [[ ${{ contains(needs.*.result, 'failure') }} == "true" ]]; then
+            echo "Failing scan status as a previous scan has failed"
+            exit 1
+          else
+            echo "All good!"
+            exit 0
+          fi
