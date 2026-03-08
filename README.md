@@ -6,7 +6,7 @@
 ![GitHub Tag](https://img.shields.io/github/v/tag/sagar-shirwalkar/lambdachain?style=flat-square&color=green)
 ![GitHub License](https://img.shields.io/github/license/sagar-shirwalkar/lambdachain?style=flat-square&color=purple)
 
-A Haskell-based blockchain implementation with advanced security features including Zero-Knowledge Proofs (ZKP), homomorphic encryption, Merkle trees, and Proof-of-Work consensus mechanism.
+A Haskell-based blockchain implementation with security features including Zero-Knowledge Proofs (ZKP), homomorphic encryption, Merkle trees, and Proof-of-Work Consensus mechanism.
 
 ## Features
 
@@ -234,6 +234,7 @@ cabal build --enable-profiling
 ### Common Issues
 
 1. **BLAKE2 not found**
+
    ```bash
    cabal install blake2
    ```
@@ -271,7 +272,3 @@ Contributions are welcome! Please ensure:
 - All functions are properly typed
 - Tests are included for new features
 - Documentation is updated
-
-## Acknowledgments
-
-This project demonstrates key blockchain concepts implemented in functional Haskell, showcasing the benefits of strong typing and functional programming for secure, reliable systems.
