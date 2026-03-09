@@ -2,291 +2,136 @@
 
 ![Haskell](https://img.shields.io/badge/Haskell-5e5086?style=for-the-badge&logo=haskell&logoColor=white)
 ![GHC](https://img.shields.io/badge/GHC-9.6.7-fbbb2b?style=for-the-badge)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/sagar-shirwalkar/lambdachain/ci.yml?style=for-the-badge)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/sagar-shirwalkar/lambdachain/ci.yml?branch=main&style=for-the-badge)
 ![GitHub Tag](https://img.shields.io/github/v/tag/sagar-shirwalkar/lambdachain?style=for-the-badge&color=blue)
 ![GitHub License](https://img.shields.io/github/license/sagar-shirwalkar/lambdachain?style=for-the-badge&color=purple)
 
-A Haskell-based blockchain implementation with security features including Zero-Knowledge Proofs (ZKP), homomorphic encryption, Merkle trees, and Proof-of-Work Consensus mechanism.
+A Haskell-based blockchain implementation with a secure UTXO-style ledger, Zero-Knowledge Proofs (ZKP), Transaction Verification, and account-based transactions.
 
 ## Features
 
-- **Blockchain Core**: Complete blockchain implementation with block structure, chain validation, and chain management
-- **Proof-of-Work Consensus**: Secure consensus mechanism with difficulty adjustment
-- **Merkle Trees**: Efficient transaction verification using Merkle tree data structure
+- **Account-based Blockchain**: UTXO-style ledger with account states, balances, and nonces
+- **Schnorr-based ZKP**: Zero-knowledge proofs for transaction authorization
+- **Merkle Trees**: Transaction verification via Merkle root hashing
 - **Cryptographic Security**:
-  - Salted BLAKE2b hashing for robust data integrity
-  - Ed25519 signature-based Zero-Knowledge Proofs for secure private transactions
-  - Industry-standard AES-256 GCM homomorphic-like encryption for sensitive data
-  - Secure environment-based key management with GitHub Actions compatibility
-- **Network Layer**: P2P communication for blockchain data exchange
-- **REST API**: Web server interface for blockchain operations
-- **Security Features**: Private transactions, authenticated encryption, ZKP verification, and salted hashes
+  - SHA-256 hashing for block integrity
+  - AES-256-GCM for encrypted transaction data
+  - Environment-based key management
+- **REST API**: HTTP server for blockchain operations
 
 ## Prerequisites
 
-### Required Software
-
-1. **Haskell GHC**: The Glasgow Haskell Compiler
-
-   ```bash
-   # macOS (Homebrew)
-   brew install ghc
-
-   # Ubuntu/Debian
-   sudo apt-get install ghc
-
-   # Download from: https://www.haskell.org/ghc/
-   ```
-
-2. **Cabal**: Haskell build system
-
-   ```bash
-   # macOS (Homebrew)
-   brew install cabal-install
-
-   # Ubuntu/Debian
-   sudo apt-get install cabal-install
-
-   # Download from: https://www.haskell.org/cabal/
-   ```
-
-3. **Stack** (Alternative build tool - recommended)
-
-   ```bash
-   curl -sSL https://get.haskellstack.org/ | sh
-   ```
-
-### System Dependencies
-
-- **BLAKE2 library**: Cryptographic hashing
-- **Wai/Warp**: HTTP server framework
-- **Aeson**: JSON serialization
-- **Network**: Socket networking
-
-## Installation
-
-### Using Cabal
+- **Glasgow Haskell Compiler (GHC)**: v9.6.7
+- **Cabal**: v3.14.2.0
+- **Stack**: v3.7.1
 
 ```bash
-# Update package list
-cabal update
+# macOS
+brew install ghc stack
 
-# Build the project
-cabal build
-
-# Install dependencies (automatically handled by build)
-cabal install --dependencies-only
+# Ubuntu/Debian
+sudo apt-get install ghc stack
 ```
 
-### Using Stack (Recommended)
+## Installation
 
 ```bash
 # Build the project
 stack build
 
-# Run tests (if available)
+# Run tests
 stack test
 ```
 
 ## Running the Application
 
-### Development Mode
-
 ```bash
-# Using runghc for quick testing
-runghc src/app/Main.hs
-
-# Using cabal
-cabal run lambdachain-exe
-
-# Using stack
 stack run
 ```
 
-### Production Mode
-
-```bash
-# Build optimized executable
-cabal build --enable-optimizations
-
-# Run the executable
-./dist/build/lambdachain-exe/lambdachain-exe
-```
+The server runs on `http://localhost:3000`.
 
 ## API Endpoints
 
-The application runs on `http://localhost:3000` and provides the following endpoints:
+### Public Endpoints
 
-- `GET /` - Welcome message
-- `GET /blockchain` - Get current blockchain state
-- `GET /block` - Add a new block with sample transactions
-- `GET /validate` - Validate the blockchain integrity
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Welcome message |
+| GET | `/blockchain` | Get blockchain state |
+| GET | `/ledger` | Get ledger state |
+| GET | `/balance/{address}` | Get account balance |
+| GET | `/pending` | Get pending transactions |
+| GET | `/validate` | Validate blockchain |
 
-### Example Usage
+### Production Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/register` | Register account with public key |
+| POST | `/transaction` | Submit pre-signed transaction |
+| POST | `/mine` | Mine pending transactions |
+
+### Debug Endpoints (testing only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/debug/register` | Register with secret key |
+| POST | `/debug/transaction` | Create and submit transaction |
+
+## Example Usage
 
 ```bash
-# Get current blockchain
-curl http://localhost:3000/blockchain
+# Register alice (debug mode)
+curl -X POST http://localhost:3000/debug/register \
+  -H "Content-Type: application/json" \
+  -d '{"secretKey": 11111, "initialBalance": 1000}'
 
-# Add a new block
-curl http://localhost:3000/block
+# Register bob (debug mode)
+curl -X POST http://localhost:3000/debug/register \
+  -H "Content-Type: application/json" \
+  -d '{"secretKey": 22222, "initialBalance": 500}'
+
+# Get balance
+curl http://localhost:3000/balance/<alice-address>
 
 # Validate blockchain
 curl http://localhost:3000/validate
+
+# Mine block
+curl -X POST http://localhost:3000/mine
 ```
 
-## Code Examples
+## Architecture
 
-### Creating a Blockchain
+### Module Structure
 
-```haskell
-import Blockchain.Blockchain
+- **Block.Block**: Block data structure and hash computation
+- **Blockchain.Blockchain**: Chain management, transaction submission, mining
+- **Transaction.Transaction**: Transaction creation, verification, ledger operations
+- **Consensus.Consensus**: Chain validation and block verification
+- **ZKP.ZKP**: Schnorr-based zero-knowledge proof system
+- **Cryptography.Hash**: SHA-256 hashing utilities
+- **Cryptography.HomomorphicEncryption**: AES-256-GCM encryption
+- **MerkleTree.MerkleTree**: Merkle tree implementation
+- **Security.KeyEnv**: Environment-based key management
 
--- Create new blockchain with difficulty level 4
-let blockchain = newBlockchain 4
-```
+### Transaction Flow
 
-### Adding Blocks
+1. Account registers with public key and initial balance
+2. Transaction created with sender, recipient, amount, nonce
+3. ZKP generated proving sender owns the secret key
+4. Transaction submitted to pending pool
+5. Miner validates all transactions, updates ledger, creates block
 
-```haskell
--- Add transactions to the blockchain
-let updatedBlockchain = addBlock blockchain ["Transaction 1", "Transaction 2"]
-```
-
-### Creating Private Transactions
-
-```haskell
-import Security.Security
-
--- Create a private transaction with Ed25519-based ZKP
--- Automatically uses environment-loaded keys
-zkp <- createPrivateTransaction "Secret transaction data"
-
--- Verify the transaction
-isValid <- verifyPrivateTransaction zkp
-```
-
-### AES-256 Encryption
-
-```haskell
-import Security.HomomorphicEncryption
-
--- Encrypt sensitive data using AES-256 GCM
-let key = "secure-key-32-chars-long-exactly"
-let encrypted = encryptData "sensitive data" key
-
--- Decrypt the data
-let decrypted = decryptData key encrypted
-```
-
-### Salted Hashing
-
-```haskell
-import Hash.Hash
-
--- Create a salted hash of the input
--- Uses HASH_SALT from environment if available
-let saltedHash = secureHash "my data"
-```
-
-## Security Implementation
-
-### Cryptographic Stack
-
-- **AES-256 GCM**: Replaced basic XOR obfuscation with authenticated AES encryption for data confidentiality.
-- **Ed25519 ZKPs**: Implemented signature-based Zero-Knowledge Proofs using the high-performance Ed25519 elliptic curve.
-- **Salted Hashing**: Added support for configurable salts via environment variables to protect against rainbow table attacks.
-- **Key Management**: Implemented `KeyEnv` for loading secrets from GitHub environment variables with Base64 decoding support and safe fallbacks.
-
-### Environment Configuration
-
-The application loads the following environment variables:
-
-- `ZKP_SIGNING_KEY`: Base64 encoded 32-byte secret key for ZKP signatures.
-- `HASH_SALT`: Base64 encoded salt for cryptographic hashing.
-
-### Production Recommendations
-
-1. **Rotate Signing Keys** regularly using GitHub Secrets.
-2. **Implement persistent storage** (database backend).
-3. **Add rate limiting** and input validation for network requests.
-4. **Add Sybil attack protection** in the consensus mechanism.
-
-## Performance Optimizations
-
-The implementation includes several performance considerations:
-
-- Efficient Merkle tree construction
-- Optimized hash calculation
-- Memory-efficient blockchain storage
-- Batch processing for network operations
-
-## Development
-
-### Project Structure
-
-- **Modular architecture**: Each component is in its own module
-- **Type safety**: Strong Haskell type system prevents many runtime errors
-- **Pure functions**: Most functions are pure, making testing easier
-- **Immutable data**: Data structures are immutable by default
-
-### Adding New Features
-
-1. Create new modules in the `src/` directory
-2. Follow the naming convention: `Module.ModuleName`
-3. Update `lambdachain.cabal` with new modules
-4. Ensure proper module exports and imports
-
-### Testing
+## Testing
 
 ```bash
-# Run tests (if implemented)
 stack test
-
-# Build with profiling
-cabal build --enable-profiling
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **BLAKE2 not found**
-
-   ```bash
-   cabal install blake2
-   ```
-
-2. **Port 3000 already in use**
-   - Change the port in `src/app/Main.hs` (line 15)
-   - Or stop the process using port 3000
-
-3. **Module not found errors**
-   - Ensure `lambdachain.cabal` lists all modules
-   - Clean build directory: `cabal clean`
-
-## Dependencies
-
-See `lambdachain.cabal` for the complete list of dependencies:
-
-- `base >=4.7 && <5`
-- `blake2` - Cryptographic hashing
-- `bytestring` - Efficient byte array handling
-- `aeson` - JSON serialization
-- `network` - Network communication
-- `wai` - Web application interface
-- `warp` - HTTP server
-- `http-types` - HTTP type definitions
+60 test cases covering ZKP, transactions, blockchain validation, and integration scenarios.
 
 ## License
 
-Released under [MIT](/LICENSE) by [@sagar-shirwalkar](https://github.com/sagar-shirwalkar).
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-
-- Code follows Haskell best practices
-- All functions are properly typed
-- Tests are included for new features
-- Documentation is updated
+MIT License - see LICENSE file.

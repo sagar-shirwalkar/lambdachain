@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Security.HomomorphicEncryption where
+module Cryptography.HomomorphicEncryption where
 
-import Hash.Hash
+import Cryptography.Hash
 import Data.Aeson
 import GHC.Generics
 import qualified Data.ByteString as B

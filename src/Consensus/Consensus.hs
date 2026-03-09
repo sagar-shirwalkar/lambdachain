@@ -1,64 +1,58 @@
-module Consensus.Consensus where
+module Consensus.Consensus
+  ( validateBlock
+  , validateBlockIntegrity
+  , validateChainLinkage
+  , validateFullChain
+  , selectChain
+  , miningReward
+  ) where
 
-import Blockchain.Blockchain
 import Block.Block
-import Hash.Hash
+import Transaction.Transaction
+    ( TxValidationError(..)
+    , processTransactionWithoutNonce
+    , Ledger
+    )
+import Control.Monad (foldM)
 
--- Proof-of-Work consensus algorithm
-data Consensus = ProofOfWork Int  -- Difficulty level
-  deriving (Show, Eq)
+-- Validate & apply every transaction in a block sequentially - returns updated ledger or first error
+-- Skips nonce check since these transactions have already been mined
+validateBlock :: Ledger -> Block -> Either TxValidationError Ledger
+validateBlock ledger block =
+  foldM processTransactionWithoutNonce ledger (blockTransactions block)
 
--- Validate if a block satisfies proof-of-work requirements
-validateProof :: Block -> Int -> Bool
-validateProof block difficulty = 
-  let target = replicate difficulty '0'
-      hash = blockHash block
-      calculatedHash = calculateBlockHash block
-  in hash == calculatedHash && take difficulty hash == target
+-- Hash integrity check.
+validateBlockIntegrity :: Block -> Bool
+validateBlockIntegrity = verifyBlockHash
 
--- Adjust difficulty based on time taken to mine previous blocks
-adjustDifficulty :: Blockchain -> Int
-adjustDifficulty bc = 
-  case chain bc of
-    [] -> 4  -- Default difficulty
-    [_] -> 4  -- Default difficulty for chains with only genesis block
-    (block1:block2:_) -> 
-      -- Simple adjustment: if time difference is greater than target, decrease difficulty
-      -- In a real implementation, this would be more sophisticated
-      let timeDiff = blockTimestamp block1 - blockTimestamp block2
-          targetTime = 10  -- Target time in seconds
-      in if timeDiff > targetTime 
-           then max 1 (difficulty bc - 1)  -- Decrease difficulty, minimum 1
-           else difficulty bc + 1            -- Increase difficulty
+-- Chain linkage (list stored newest-first) for O(1)
+validateChainLinkage :: [Block] -> Bool
+validateChainLinkage []  = True
+validateChainLinkage [_] = True
+validateChainLinkage (newer : older : rest) =
+     blockPreviousHash newer == blockHash older
+  && blockIndex newer == blockIndex older + 1
+  && validateChainLinkage (older : rest)
 
--- Select the longest valid chain as the authoritative chain
-selectChain :: [Blockchain] -> Maybe Blockchain
-selectChain [] = Nothing
-selectChain chains = Just (longestChain chains)
-  where
-    longestChain = foldl1 (\bc1 bc2 -> if length (chain bc1) > length (chain bc2) then bc1 else bc2)
+-- Full chain validation: hashes + linkage + all ZKP proofs
+validateFullChain :: Ledger -> [Block] -> Bool
+validateFullChain genesisState blocks =
+  let chronological = reverse blocks
+  in  validateChainLinkage blocks
+   && all validateBlockIntegrity blocks
+   && case foldM validateBlock genesisState chronological of
+        Right _  -> True
+        Left  _  -> False
 
--- Verify that a node has done the required work
-verifyNodeWork :: Block -> Int -> Bool
-verifyNodeWork block requiredDifficulty = validateProof block requiredDifficulty
+-- Longest valid chain selection (for peer sync)
+selectChain :: Ledger -> [[Block]] -> Maybe [Block]
+selectChain _ [] = Nothing
+selectChain genesis chains =
+  case filter (validateFullChain genesis) chains of
+    []    -> Nothing
+    valid -> Just $ foldl1 longer valid
+  where longer a b = if length a >= length b then a else b
 
--- Calculate mining reward (simplified)
+-- Block reward with halving
 miningReward :: Int -> Double
-miningReward blockHeight = 50.0 / (2.0 ^ fromIntegral (blockHeight `div` 210000))
-
--- Check if the blockchain satisfies consensus rules
-validateConsensus :: Blockchain -> Bool
-validateConsensus bc = 
-  let chainBlocks = chain bc
-  in case chainBlocks of
-       [] -> True  -- Empty chain is valid
-       [_] -> True  -- Single block (genesis) is valid
-       _ -> all (\block -> validateProof block (difficulty bc)) chainBlocks
-
--- Create a new consensus mechanism with specified difficulty
-newConsensus :: Int -> Consensus
-newConsensus difficulty = ProofOfWork difficulty
-
--- Get the current difficulty from consensus
-getDifficulty :: Consensus -> Int
-getDifficulty (ProofOfWork diff) = diff
+miningReward height = 50.0 / (2.0 ^ (height `div` 210000))

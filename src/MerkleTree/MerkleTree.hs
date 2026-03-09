@@ -4,7 +4,7 @@ module MerkleTree.MerkleTree where
 
 import GHC.Generics (Generic)
 import Data.Aeson
-import Hash.Hash (hashString)
+import Cryptography.Hash
 
 -- Merkle Trees
 data MerkleTree = Leaf String | Node String MerkleTree MerkleTree
