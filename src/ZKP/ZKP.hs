@@ -28,9 +28,9 @@ import Numeric                     (showHex, readHex)
 
 -- Schnorr prime-order group parameters.
 data ZKParams = ZKParams
-  { paramP :: !Integer   -- ^ Safe prime modulus
-  , paramQ :: !Integer   -- ^ Prime order of subgroup, q | (p−1)
-  , paramG :: !Integer   -- ^ Generator of the order-q subgroup of Z*_p
+  { paramP :: !Integer   -- Safe prime modulus
+  , paramQ :: !Integer   -- Prime order of subgroup, q | (p−1)
+  , paramG :: !Integer   -- Generator of the order-q subgroup of Z*_p
   } deriving (Show, Eq, Generic)
 
 instance ToJSON ZKParams
@@ -95,9 +95,9 @@ computeChallenge params y t ctx =
 --   and /must never be reused/.  Reuse leaks the secret key
 --   (same failure mode as ECDSA nonce reuse).
 generateZKProof :: ZKParams
-                -> Integer        -- ^ Secret  x  ∈ [1, q−1]
-                -> Integer        -- ^ Nonce   r  ∈ [1, q−1]  (random, unique!)
-                -> B.ByteString   -- ^ Context (e.g. transaction hash)
+                -> Integer        -- Secret  x  ∈ [1, q−1]
+                -> Integer        -- Nonce   r  ∈ [1, q−1]  (random, unique!)
+                -> B.ByteString   -- Context (e.g. transaction hash)
                 -> ZKP
 generateZKProof params x r ctx
   | r <= 0 || r >= paramQ params =

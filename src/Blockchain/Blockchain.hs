@@ -28,6 +28,14 @@ import Transaction.Transaction
     , processTransaction
     )
 import Consensus.Consensus
+    ( Difficulty
+    , defaultDifficulty
+    , createCoinbaseTx
+    , miningReward
+    , validateBlock
+    , validateFullChain
+    )
+import qualified Consensus.Consensus as Consensus (mineBlock)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Map.Strict as Map
 import Data.List (foldl')
@@ -69,31 +77,51 @@ submitTransaction bc tx = do
   verifyTransaction (ledger bc) tx
   Right bc { pendingPool = pendingPool bc ++ [tx] }
 
--- Mine pending transactions into a new block
-mineBlock :: Blockchain -> IO (Either String Blockchain)
-mineBlock bc
+-- Mine pending transactions into a new block with proof-of-work
+-- This function creates a coinbase transaction for the miner and performs PoW mining
+mineBlock :: Blockchain          -- Current blockchain state
+          -> Address             -- Miner's address for reward
+          -> Difficulty          -- Mining difficulty
+          -> IO (Either String Blockchain)
+mineBlock bc minerAddress difficulty
   | null (pendingPool bc) = return (Left "No pending transactions")
   | otherwise = do
-      let txs = pendingPool bc
-          (validTxs, newLedger) = applyValid (ledger bc) txs
+      let prevBlock = latestBlock bc
+          newIndex  = blockIndex prevBlock + 1
+          reward    = miningReward newIndex
+      
+      -- Create coinbase transaction for miner
+      coinbaseTx <- createCoinbaseTx minerAddress reward newIndex
+      
+      -- Combine coinbase with pending transactions
+      let allTxs = coinbaseTx : pendingPool bc
+          (validTxs, newLedger) = applyValid (ledger bc) allTxs
+      
       if null validTxs
         then return (Left "No valid transactions in pool")
         else do
           timestamp <- getCurrentTimestamp
-          let prevBlock = latestBlock bc
-              newIndex  = blockIndex prevBlock + 1
-              newBlock  = Block
+          
+          -- Create block template (nonce will be found by PoW)
+          let blockTemplate = Block
                 { blockIndex        = newIndex
                 , blockTimestamp     = timestamp
                 , blockTransactions = validTxs
-                , blockPreviousHash      = blockHash prevBlock
-                , blockHash         = calculateBlockHash newIndex timestamp validTxs (blockHash prevBlock)
+                , blockPreviousHash  = blockHash prevBlock
+                , blockNonce        = 0  -- Will be replaced by mining
+                , blockHash         = "" -- Will be calculated by mining
                 }
-          return $ Right bc
-            { chain       = newBlock :chain bc
-            , ledger      = newLedger
-            , pendingPool = []
-            }
+          
+          -- Perform proof-of-work mining (max 10 million attempts)
+          minedResult <- Consensus.mineBlock blockTemplate difficulty 10000000
+          
+          case minedResult of
+            Nothing -> return (Left "Mining failed: could not find valid nonce")
+            Just minedBlock -> return $ Right bc
+              { chain       = minedBlock : chain bc
+              , ledger      = newLedger
+              , pendingPool = []
+              }
 
 -- Apply transactions one by one, skip invalid.
 applyValid :: Ledger -> [BlockchainTx] -> ([BlockchainTx], Ledger)

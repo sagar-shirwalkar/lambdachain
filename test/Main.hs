@@ -13,11 +13,20 @@ import ZKP.ZKP
 import Transaction.Transaction
 import Blockchain.Blockchain
 import Block.Block
+import Consensus.Consensus hiding (mineBlock)
+import MerkleTree.MerkleTree
+import Cryptography.Hash hiding (hash)
+import Cryptography.HomomorphicEncryption hiding (bsToString)
 
 main :: IO ()
 main = hspec $ do
   zkpSpec
   transactionSpec
+  blockSpec
+  consensusSpec
+  hashSpec
+  merkleTreeSpec
+  encryptionSpec
   blockchainSpec
   integrationSpec
 
@@ -134,6 +143,206 @@ zkpSpec = describe "ZKP.ZKP" $ do
         let payload = BC.pack "qc test"
         proof <- generateZKProofIO defaultParams secret payload
         return $ verifyZKP defaultParams proof payload
+
+--
+-- Block Tests
+--
+
+blockSpec :: Spec
+blockSpec = describe "Block.Block" $ do
+
+  describe "genesisBlock" $ do
+    it "has index 0" $ do
+      blockIndex genesisBlock `shouldBe` 0
+
+    it "has empty transactions" $ do
+      blockTransactions genesisBlock `shouldBe` []
+
+    it "has valid hash" $ do
+      verifyBlockHash genesisBlock `shouldBe` True
+
+  describe "calculateBlockHash" $ do
+    it "produces consistent hash" $ do
+      let h1 = calculateBlockHash 0 100 [] "0000000000000000000000000000000000000000" 0
+          h2 = calculateBlockHash 0 100 [] "0000000000000000000000000000000000000000" 0
+      h1 `shouldBe` h2
+
+    it "produces different hash for different nonce" $ do
+      let h1 = calculateBlockHash 0 100 [] "0000000000000000000000000000000000000000" 0
+          h2 = calculateBlockHash 0 100 [] "0000000000000000000000000000000000000000" 1
+      h1 `shouldNotBe` h2
+
+  describe "verifyBlockHash" $ do
+    it "accepts valid block" $ do
+      verifyBlockHash genesisBlock `shouldBe` True
+
+    it "rejects tampered block" $ do
+      let tampered = genesisBlock { blockNonce = 999 }
+      verifyBlockHash tampered `shouldBe` False
+
+  describe "createBlock" $ do
+    it "creates block with correct index" $ do
+      block <- createBlock 5 [] "abc123" 42
+      blockIndex block `shouldBe` 5
+
+    it "creates block with valid hash" $ do
+      block <- createBlock 1 [] "abc123" 0
+      verifyBlockHash block `shouldBe` True
+
+--
+-- Consensus Tests
+--
+
+consensusSpec :: Spec
+consensusSpec = describe "Consensus.Consensus" $ do
+
+  describe "meetsDifficulty" $ do
+    it "accepts hash with required leading zeros" $ do
+      meetsDifficulty "00abc123" 2 `shouldBe` True
+
+    it "rejects hash without enough leading zeros" $ do
+      meetsDifficulty "0abc123" 2 `shouldBe` False
+
+    it "accepts any hash when difficulty is 0" $ do
+      meetsDifficulty "abc123" 0 `shouldBe` True
+
+  describe "defaultDifficulty" $ do
+    it "is 2" $ do
+      defaultDifficulty `shouldBe` 2
+
+  describe "maxDifficulty" $ do
+    it "is 8" $ do
+      maxDifficulty `shouldBe` 8
+
+  describe "miningReward" $ do
+    it "starts at 50 for block 0" $ do
+      miningReward 0 `shouldBe` 50.0
+
+    it "halves after 210000 blocks" $ do
+      miningReward 210000 `shouldBe` 25.0
+      miningReward 210001 `shouldBe` 25.0
+
+  describe "createCoinbaseTx" $ do
+    it "creates coinbase transaction" $ do
+      tx <- createCoinbaseTx "miner_address" 50.0 1
+      txRecipient tx `shouldBe` "miner_address"
+      txSender tx `shouldBe` "0000000000000000000000000000000000000000"
+
+  describe "validatePoW" $ do
+    it "accepts block meeting difficulty" $ do
+      blk <- createBlock 0 [] (replicate 64 '0') 0
+      let validHash = "00" ++ replicate 62 'a'
+          blk2 = blk { blockHash = validHash }
+      meetsDifficulty validHash 2 `shouldBe` True
+
+  describe "validateChainLinkage" $ do
+    it "accepts valid chain" $ do
+      let b0 = genesisBlock
+          b1 = genesisBlock { blockIndex = 1, blockPreviousHash = blockHash b0 }
+      validateChainLinkage [b1, b0] `shouldBe` True
+
+    it "rejects broken linkage" $ do
+      let b0 = genesisBlock
+          b1 = genesisBlock { blockIndex = 1, blockPreviousHash = "wrong" }
+      validateChainLinkage [b1, b0] `shouldBe` False
+
+--
+-- Hash Tests
+--
+
+hashSpec :: Spec
+hashSpec = describe "Cryptography.Hash" $ do
+
+  describe "hashString" $ do
+    it "produces consistent hash" $ do
+      hashString "test" `shouldBe` hashString "test"
+
+    it "produces different hash for different input" $ do
+      hashString "test1" `shouldNotBe` hashString "test2"
+
+    it "produces 64 character hex string" $ do
+      let h = hashString "test"
+      length h `shouldBe` 64
+
+  describe "hash" $ do
+    it "is alias for hashString" $ do
+      hashString "test" `shouldBe` hashString "test"
+
+  describe "secureHash" $ do
+    it "produces consistent result" $ do
+      secureHash "test" `shouldBe` secureHash "test"
+
+    it "differs from plain hash" $ do
+      secureHash "test" `shouldNotBe` hashString "test"
+
+--
+-- MerkleTree Tests
+--
+
+merkleTreeSpec :: Spec
+merkleTreeSpec = describe "MerkleTree.MerkleTree" $ do
+
+  describe "constructMerkleTree" $ do
+    it "creates single leaf for single transaction" $ do
+      let tree = constructMerkleTree ["tx1"]
+      verifyMerkleTree tree `shouldBe` True
+
+    it "creates valid tree for multiple transactions" $ do
+      let tree = constructMerkleTree ["tx1", "tx2", "tx3", "tx4"]
+      verifyMerkleTree tree `shouldBe` True
+
+    it "handles empty list" $ do
+      let tree = constructMerkleTree []
+      verifyMerkleTree tree `shouldBe` False
+
+  describe "getMerkleRoot" $ do
+    it "returns root hash" $ do
+      let tree = constructMerkleTree ["tx1", "tx2"]
+      length (getMerkleRoot tree) `shouldBe` 128
+
+  describe "verifyMerkleTree" $ do
+    it "accepts valid tree" $ do
+      let tree = constructMerkleTree ["tx1", "tx2"]
+      verifyMerkleTree tree `shouldBe` True
+
+    it "rejects tampered tree" $ do
+      let tree = Node "tampered" (Leaf "a") (Leaf "b")
+      verifyMerkleTree tree `shouldBe` False
+
+--
+-- Encryption Tests
+--
+
+encryptionSpec :: Spec
+encryptionSpec = describe "Cryptography.HomomorphicEncryption" $ do
+
+  describe "encryptData" $ do
+    it "encrypts and produces base64 output" $ do
+      let encrypted = encryptData "plaintext" "secretkey123"
+      length (encryptedNonce encrypted) `shouldSatisfy` (> 0)
+      length (encryptedCiphertext encrypted) `shouldSatisfy` (> 0)
+
+    it "produces same output for same input (deterministic)" $ do
+      let e1 = encryptData "test" "key"
+          e2 = encryptData "test" "key"
+      encryptedNonce e1 `shouldBe` encryptedNonce e2
+
+  describe "decryptData" $ do
+    it "roundtrips encryption/decryption" $ do
+      let original = "secret message"
+          encrypted = encryptData original "mysecretkey"
+          decrypted = decryptData "mysecretkey" encrypted
+      decrypted `shouldBe` original
+
+    it "fails with wrong key" $ do
+      let encrypted = encryptData "test" "correctkey"
+          decrypted = decryptData "wrongkey" encrypted
+      decrypted `shouldNotBe` "test"
+
+  describe "stringToBS / bsToString" $ do
+    it "roundtrips" $ do
+      let original = "hello world"
+      bsToString (stringToBS original) `shouldBe` original
 
 --
 -- Transaction Tests
@@ -436,7 +645,7 @@ blockchainSpec = describe "Blockchain.Blockchain" $ do
       case submitTransaction bc0 tx of
         Left err  -> expectationFailure (show err)
         Right bc1 -> do
-          result <- mineBlock bc1
+          result <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
           case result of
             Left err   -> expectationFailure err
             Right bc2 -> do
@@ -448,7 +657,7 @@ blockchainSpec = describe "Blockchain.Blockchain" $ do
               (accountBalance <$> getAccount bc2 bobAddr)   `shouldBe` Just 100
 
     it "returns error when no pending transactions" $ do
-      result <- mineBlock newBlockchain
+      result <- Blockchain.Blockchain.mineBlock newBlockchain "miner" defaultDifficulty
       case result of
         Left _  -> return ()
         Right _ -> expectationFailure "Should fail with no pending txs"
@@ -467,7 +676,7 @@ blockchainSpec = describe "Blockchain.Blockchain" $ do
       tx2 <- createTransaction alice bobAddr 200 1  -- same nonce!
       -- Force both into pending pool (bypass validation for test)
       let bc1 = bc0 { pendingPool = [tx1, tx2] }
-      result <- mineBlock bc1
+      result <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
       case result of
         Left err  -> expectationFailure err
         Right bc2 -> do
@@ -489,7 +698,7 @@ blockchainSpec = describe "Blockchain.Blockchain" $ do
       case submitTransaction bc0 tx of
         Left err  -> expectationFailure (show err)
         Right bc1 -> do
-          result <- mineBlock bc1
+          result <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
           case result of
             Left err   -> expectationFailure err
             Right bc2 -> validateChain bc2 `shouldBe` True
@@ -522,7 +731,7 @@ integrationSpec = describe "Integration" $ do
       case submitTransaction bc0 tx1 of
         Left err -> expectationFailure $ "tx1 failed: " ++ show err
         Right bc1 -> do
-          result1 <- mineBlock bc1
+          result1 <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
           case result1 of
             Left err -> expectationFailure $ "mine1 failed: " ++ show err
             Right bc2 -> do
@@ -537,7 +746,7 @@ integrationSpec = describe "Integration" $ do
                   case submitTransaction bc3 tx3 of
                     Left err -> expectationFailure $ "tx3 failed: " ++ show err
                     Right bc4 -> do
-                      result2 <- mineBlock bc4
+                      result2 <- Blockchain.Blockchain.mineBlock bc4 "miner" defaultDifficulty
                       case result2 of
                         Left err -> expectationFailure $ "mine2 failed: " ++ show err
                         Right bc5 -> do
@@ -564,12 +773,12 @@ integrationSpec = describe "Integration" $ do
       -- Block 1: Alice -> Bob 1000
       tx1 <- createTransaction alice addrB 1000 1
       let Right bc1 = submitTransaction bc0 tx1
-      Right bc2 <- mineBlock bc1
+      Right bc2 <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
 
       -- Block 2: Alice -> Bob 2000
       tx2 <- createTransaction alice addrB 2000 2
       let Right bc3 = submitTransaction bc2 tx2
-      Right bc4 <- mineBlock bc3
+      Right bc4 <- Blockchain.Blockchain.mineBlock bc3 "miner" defaultDifficulty
 
       chainLength bc4 `shouldBe` 3
       validateChain bc4 `shouldBe` True
@@ -590,7 +799,7 @@ integrationSpec = describe "Integration" $ do
       -- Spend 400
       tx1 <- createTransaction alice addrB 400 1
       let Right bc1 = submitTransaction bc0 tx1
-      Right bc2 <- mineBlock bc1
+      Right bc2 <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
 
       -- Try to spend 400 again (only 100 left)
       tx2 <- createTransaction alice addrB 400 2
@@ -649,7 +858,7 @@ integrationSpec = describe "Integration" $ do
       case submitTransaction bc0 tx of
         Left err  -> expectationFailure (show err)
         Right bc1 -> do
-          result <- mineBlock bc1
+          result <- Blockchain.Blockchain.mineBlock bc1 "miner" defaultDifficulty
           case result of
             Left err  -> expectationFailure err
             Right bc2 -> do

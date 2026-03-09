@@ -35,6 +35,7 @@ import Transaction.Transaction
     )
 import Block.Block                 (Block(..))
 import ZKP.ZKP
+import Consensus.Consensus         (defaultDifficulty)
 
 --
 -- Request types
@@ -215,22 +216,29 @@ handleSubmitTx st req respond = do
           ]
         Left err' -> respond $ jsonErr status400 (show err')
 
--- Mine all valid pending transactions into a new block.
+-- Mine all valid pending transactions into a new block with proof-of-work.
+-- Uses a default miner address for rewards (in production, this would be configurable)
 handleMine :: TVar Blockchain -> (Response -> IO a) -> IO a
 handleMine st respond = do
   bc <- readTVarIO st
-  result <- mineBlock bc
+  -- Default miner address (in production, this should be configurable)
+  let defaultMinerAddress = "0000000000000000000000000000000000000001"
+      difficulty = defaultDifficulty
+  result <- mineBlock bc defaultMinerAddress difficulty
   case result of
     Left err -> respond $ jsonErr status400 err
     Right newBC -> do
       atomically $ writeTVar st newBC
       let blk = latestBlock newBC
       respond $ jsonCreated $ object
-        [ "message"     .= ("Block mined" :: String)
+        [ "message"     .= ("Block mined with PoW" :: String)
         , "blockIndex"  .= blockIndex blk
         , "blockHash"   .= blockHash blk
+        , "blockNonce"  .= blockNonce blk
+        , "difficulty"  .= difficulty
         , "txCount"     .= length (blockTransactions blk)
         ]
+
 
 --
 -- Debug POST handlers  (secret keys sent to server - testing only!)

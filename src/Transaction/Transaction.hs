@@ -1,7 +1,39 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Transaction.Transaction where
+module Transaction.Transaction
+  ( -- * Addresses
+    Address
+  , coinbaseSender
+  , deriveAddress
+  , deriveAddressFromSecret
+  
+  -- * Ledger
+  , AccountState(..)
+  , Ledger
+  , emptyLedger
+  , registerAccount
+  , registerAccountWithPK
+  , lookupPublicKey
+  
+  -- * Transaction
+  , BlockchainTx(..)
+  , isCoinbaseTx
+  , canonicalPayload
+  , createTransaction
+  , createEncryptedTransaction
+  
+  -- * Validation
+  , TxValidationError(..)
+  , verifyTransaction
+  , verifyTransactionWithoutNonce
+  
+  -- * Processing
+  , applyTransaction
+  , processTransaction
+  , processTransactionWithoutNonce
+  , verifyAndDecrypt
+  ) where
 
 import ZKP.ZKP
 import Cryptography.HomomorphicEncryption
@@ -21,6 +53,15 @@ import Numeric                     (showHex)
 --
 
 type Address = String
+
+-- Special sender address for coinbase (mining reward) transactions
+-- All zeros to indicate this is a mining reward (not from a real account)
+coinbaseSender :: Address
+coinbaseSender = "0000000000000000000000000000000000000000"
+
+-- Check if a transaction is a coinbase transaction
+isCoinbaseTx :: BlockchainTx -> Bool
+isCoinbaseTx tx = txSender tx == coinbaseSender
 
 -- address = first 40 hex chars of SHA-256(hex(publicKey))
 deriveAddress :: Integer -> Address
@@ -71,8 +112,8 @@ lookupPublicKey :: Ledger -> Address -> Maybe Integer
 lookupPublicKey ledger addr = accountPubKey <$> Map.lookup addr ledger
 
 -- Register with a public key directly (production - client never sends secret key)
-registerAccountWithPK :: Integer    -- ^ Public key
-                      -> Integer    -- ^ Initial balance
+registerAccountWithPK :: Integer    -- Public key
+                      -> Integer    -- Initial balance
                       -> Ledger -> Ledger
 registerAccountWithPK pubKey balance lgr =
   let addr    = deriveAddress pubKey
@@ -130,10 +171,10 @@ txCanonicalPayload tx =
 --
 
 -- Create a plain (unencrypted) transaction
-createTransaction :: Integer   -- ^ Sender's secret key
-                  -> Address   -- ^ Recipient address
-                  -> Integer   -- ^ Amount
-                  -> Integer   -- ^ Nonce
+createTransaction :: Integer   -- Sender's secret key
+                  -> Address   -- Recipient address
+                  -> Integer   -- Amount
+                  -> Integer   -- Nonce
                   -> IO BlockchainTx
 createTransaction secret recipient amount nonce =
   createTransactionWith secret recipient amount nonce Nothing
@@ -232,9 +273,11 @@ verifyTransaction ledger tx = do
 --
 
 -- Apply a verified transaction to the ledger, updating balances and nonces for both sender and recipient
+-- For coinbase transactions, only credit the recipient (no sender to debit)
 applyTransaction :: Ledger -> BlockchainTx -> Ledger
-applyTransaction ledger tx =
-    creditRecipient . debitSender $ ledger
+applyTransaction ledger tx
+  | isCoinbaseTx tx = creditRecipient ledger
+  | otherwise       = creditRecipient . debitSender $ ledger
   where
     debitSender = Map.adjust
       (\a -> a { accountBalance = accountBalance a - txAmount tx
@@ -269,21 +312,24 @@ verifyAndDecrypt ledger tx decKey = do
     Just cipher -> Right (Just (decryptData decKey cipher))
 
 verifyTransactionWithoutNonce :: Ledger -> BlockchainTx -> Either TxValidationError ()
-verifyTransactionWithoutNonce ledger tx = do
-  account <- maybe (Left UnknownSender) Right
-               (Map.lookup (txSender tx) ledger)
+verifyTransactionWithoutNonce ledger tx
+  -- Coinbase transactions are special: no sender validation needed
+  | isCoinbaseTx tx = Right ()
+  | otherwise = do
+      account <- maybe (Left UnknownSender) Right
+                   (Map.lookup (txSender tx) ledger)
 
-  let pubKey = accountPubKey account
+      let pubKey = accountPubKey account
 
-  if deriveAddress pubKey /= txSender tx
-    then Left AddressMismatch
-    else Right ()
+      if deriveAddress pubKey /= txSender tx
+        then Left AddressMismatch
+        else Right ()
 
-  if txAmount tx > accountBalance account
-    then Left InsufficientBalance
-    else Right ()
+      if txAmount tx > accountBalance account
+        then Left InsufficientBalance
+        else Right ()
 
-  let payload = txCanonicalPayload tx
-  if not (verifyZKPWithKey defaultParams (txProof tx) pubKey payload)
-    then Left InvalidProof
-    else Right ()
+      let payload = txCanonicalPayload tx
+      if not (verifyZKPWithKey defaultParams (txProof tx) pubKey payload)
+        then Left InvalidProof
+        else Right ()

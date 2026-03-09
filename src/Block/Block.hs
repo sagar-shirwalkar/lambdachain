@@ -21,6 +21,7 @@ data Block = Block
   , blockTimestamp     :: !Integer
   , blockTransactions :: ![BlockchainTx]
   , blockPreviousHash :: !String
+  , blockNonce        :: !Integer
   , blockHash         :: !String
   } deriving (Show, Eq, Generic)
 
@@ -28,12 +29,13 @@ instance ToJSON Block
 instance FromJSON Block
 
 -- Hash of block contents (SHA-256).
-calculateBlockHash :: Int -> Integer -> [BlockchainTx] -> String -> String
-calculateBlockHash idx ts txs prevHash =
+calculateBlockHash :: Int -> Integer -> [BlockchainTx] -> String -> Integer -> String
+calculateBlockHash idx ts txs prevHash nonce =
   let canonical = BC.pack $ concat
         [ "blk|ix:", show idx
         , "|ts:", show ts
         , "|ph:", prevHash
+        , "|nonce:", show nonce
         , "|n:", show (length txs)
         , "|txs:", concatMap txFingerprint txs
         ]
@@ -57,14 +59,15 @@ verifyBlockHash b =
   blockHash b == calculateBlockHash
     (blockIndex b) (blockTimestamp b)
     (blockTransactions b) (blockPreviousHash b)
+    (blockNonce b)
 
 genesisBlock :: Block
 genesisBlock =
-  let idx = 0; ts = 0; txs = []; prev = replicate 64 '0'
-  in Block idx ts txs prev (calculateBlockHash idx ts txs prev)
+  let idx = 0; ts = 0; txs = []; prev = replicate 64 '0'; nonce = 0
+  in Block idx ts txs prev nonce (calculateBlockHash idx ts txs prev nonce)
 
-createBlock :: Int -> [BlockchainTx] -> String -> IO Block
-createBlock idx txs prevHash = do
+createBlock :: Int -> [BlockchainTx] -> String -> Integer -> IO Block
+createBlock idx txs prevHash nonce = do
   ts <- round <$> getPOSIXTime
-  return $ Block idx ts txs prevHash
-    (calculateBlockHash idx ts txs prevHash)
+  return $ Block idx ts txs prevHash nonce
+    (calculateBlockHash idx ts txs prevHash nonce)

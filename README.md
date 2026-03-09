@@ -12,11 +12,14 @@ A Haskell-based blockchain implementation with a secure UTXO-style ledger, Zero-
 
 - **Account-based Blockchain**: UTXO-style ledger with account states, balances, and nonces
 - **Schnorr-based ZKP**: Zero-knowledge proofs for transaction authorization
+- **Proof-of-Work (PoW)**: Mining with configurable difficulty and block rewards
+- **Block Rewards**: Coinbase transactions reward miners (halving every 210,000 blocks like Bitcoin)
 - **Merkle Trees**: Transaction verification via Merkle root hashing
 - **Cryptographic Security**:
-  - SHA-256 hashing for block integrity
+  - SHA-256 and Blake2b hashing for block integrity
   - AES-256-GCM for encrypted transaction data
   - Environment-based key management
+- **Chain Validation**: Full chain integrity verification with difficulty adjustment
 - **REST API**: HTTP server for blockchain operations
 
 ## Prerequisites
@@ -106,14 +109,14 @@ curl -X POST http://localhost:3000/mine
 
 ### Module Structure
 
-- **Block.Block**: Block data structure and hash computation
-- **Blockchain.Blockchain**: Chain management, transaction submission, mining
+- **Block.Block**: Block data structure, hash computation, genesis block creation
+- **Blockchain.Blockchain**: Chain management, transaction submission, mining with PoW
 - **Transaction.Transaction**: Transaction creation, verification, ledger operations
-- **Consensus.Consensus**: Chain validation and block verification
+- **Consensus.Consensus**: PoW mining, difficulty adjustment, block validation, chain selection
 - **ZKP.ZKP**: Schnorr-based zero-knowledge proof system
-- **Cryptography.Hash**: SHA-256 hashing utilities
+- **Cryptography.Hash**: SHA-256 and Blake2b hashing utilities
 - **Cryptography.HomomorphicEncryption**: AES-256-GCM encryption
-- **MerkleTree.MerkleTree**: Merkle tree implementation
+- **MerkleTree.MerkleTree**: Merkle tree implementation for transaction verification
 - **Security.KeyEnv**: Environment-based key management
 
 ### Transaction Flow
@@ -122,7 +125,16 @@ curl -X POST http://localhost:3000/mine
 2. Transaction created with sender, recipient, amount, nonce
 3. ZKP generated proving sender owns the secret key
 4. Transaction submitted to pending pool
-5. Miner validates all transactions, updates ledger, creates block
+5. Miner collects pending transactions and creates coinbase reward
+6. PoW mining finds valid nonce meeting difficulty target
+7. Block added to chain, ledger updated, miner receives block reward
+
+### Mining & Block Rewards
+
+- **Difficulty**: Default 2 leading zeros, adjustable (max 8)
+- **Target Time**: 2 minutes between blocks (for testing)
+- **Block Reward**: Starts at 50 coins, halves every 210,000 blocks
+- **Coinbase**: Special transaction with miner address as recipient
 
 ## Testing
 
@@ -130,8 +142,9 @@ curl -X POST http://localhost:3000/mine
 stack test
 ```
 
-60 test cases covering ZKP, transactions, blockchain validation, and integration scenarios.
+97 test cases covering ZKP, transactions, block validation, consensus (PoW), Merkle trees, encryption, blockchain operations, and integration scenarios.
+
 
 ## License
 
-MIT License - see LICENSE file.
+Released under [MIT](/LICENSE) by [@sagar-shirwalkar](https://github.com/sagar-shirwalkar).
