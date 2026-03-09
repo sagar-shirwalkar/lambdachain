@@ -1,101 +1,183 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Blockchain.Blockchain where
+module Blockchain.Blockchain
+  ( Blockchain(..)
+  , newBlockchain
+  , registerAccount
+  , registerAccountFromSecret
+  , submitTransaction
+  , mineBlock
+  , addReceivedBlock
+  , adoptLongerChain
+  , validateChain
+  , getBalance
+  , getAccount
+  , chainLength
+  , latestBlock
+  ) where
 
-import GHC.Generics (Generic)
 import Block.Block
-import Hash.Hash
-import MerkleTree.MerkleTree
-import Data.List (find, sortBy)
-import qualified Data.Map as Map
-import Data.Time.Clock
-import Data.Ord (comparing)
-import Data.Aeson
+import qualified Transaction.Transaction as Tx
+import Transaction.Transaction
+    ( BlockchainTx(..)
+    , AccountState(..)
+    , Ledger
+    , Address
+    , TxValidationError(..)
+    , verifyTransaction
+    , processTransaction
+    )
+import Consensus.Consensus
+    ( Difficulty
+    , defaultDifficulty
+    , createCoinbaseTx
+    , miningReward
+    , validateBlock
+    , validateFullChain
+    )
+import qualified Consensus.Consensus as Consensus (mineBlock)
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Data.Map.Strict as Map
+import Data.List (foldl')
+import Control.Monad (foldM)
+import Data.Aeson (ToJSON, FromJSON)
+import GHC.Generics (Generic)
 
--- Define the blockchain structure
 data Blockchain = Blockchain
-  { chain :: [Block]
-  , difficulty :: Int
+  { chain         :: ![Block]
+  , ledger        :: !Ledger
+  , pendingPool   :: ![BlockchainTx]
+  , genesisLedger :: !Ledger
   } deriving (Show, Eq, Generic)
 
 instance ToJSON Blockchain
-instance FromJSON Blockchain  
+instance FromJSON Blockchain
 
--- Create a new blockchain with genesis block
-newBlockchain :: Int -> Blockchain
-newBlockchain d = Blockchain { chain = [genesisBlock], difficulty = d }
+newBlockchain :: Blockchain
+newBlockchain = Blockchain
+  { chain         = [genesisBlock]
+  , ledger        = Tx.emptyLedger
+  , pendingPool   = []
+  , genesisLedger = Tx.emptyLedger
+  }
+
+-- Register with public key (production)
+registerAccount :: Integer -> Integer -> Blockchain -> Blockchain
+registerAccount pubKey balance bc =
+  bc { ledger = Tx.registerAccountWithPK pubKey balance (ledger bc) }
+
+-- Register with secret key (debug)
+registerAccountFromSecret :: Integer -> Integer -> Blockchain -> Blockchain
+registerAccountFromSecret secret balance bc =
+  bc { ledger = Tx.registerAccount secret balance (ledger bc) }
+
+-- Validate and add transaction to pending pool
+submitTransaction :: Blockchain -> BlockchainTx -> Either TxValidationError Blockchain
+submitTransaction bc tx = do
+  verifyTransaction (ledger bc) tx
+  Right bc { pendingPool = pendingPool bc ++ [tx] }
+
+-- Mine pending transactions into a new block with proof-of-work
+-- This function creates a coinbase transaction for the miner and performs PoW mining
+mineBlock :: Blockchain          -- Current blockchain state
+          -> Address             -- Miner's address for reward
+          -> Difficulty          -- Mining difficulty
+          -> IO (Either String Blockchain)
+mineBlock bc minerAddress difficulty
+  | null (pendingPool bc) = return (Left "No pending transactions")
+  | otherwise = do
+      let prevBlock = latestBlock bc
+          newIndex  = blockIndex prevBlock + 1
+          reward    = miningReward newIndex
+      
+      -- Create coinbase transaction for miner
+      coinbaseTx <- createCoinbaseTx minerAddress reward newIndex
+      
+      -- Combine coinbase with pending transactions
+      let allTxs = coinbaseTx : pendingPool bc
+          (validTxs, newLedger) = applyValid (ledger bc) allTxs
+      
+      if null validTxs
+        then return (Left "No valid transactions in pool")
+        else do
+          timestamp <- getCurrentTimestamp
+          
+          -- Create block template (nonce will be found by PoW)
+          let blockTemplate = Block
+                { blockIndex        = newIndex
+                , blockTimestamp     = timestamp
+                , blockTransactions = validTxs
+                , blockPreviousHash  = blockHash prevBlock
+                , blockNonce        = 0  -- Will be replaced by mining
+                , blockHash         = "" -- Will be calculated by mining
+                }
+          
+          -- Perform proof-of-work mining (max 10 million attempts)
+          minedResult <- Consensus.mineBlock blockTemplate difficulty 10000000
+          
+          case minedResult of
+            Nothing -> return (Left "Mining failed: could not find valid nonce")
+            Just minedBlock -> return $ Right bc
+              { chain       = minedBlock : chain bc
+              , ledger      = newLedger
+              , pendingPool = []
+              }
+
+-- Apply transactions one by one, skip invalid.
+applyValid :: Ledger -> [BlockchainTx] -> ([BlockchainTx], Ledger)
+applyValid startL txs =
+  let (rev, finalL) = foldl' go ([], startL) txs
+  in (reverse rev, finalL)
   where
-    genesisBlock = Block
-      { blockIndex = 0
-      , blockTimestamp = 0
-      , blockTransactions = ["Genesis Block"]
-      , blockPreviousHash = "0"
-      , blockNonce = 0
-      , blockHash = hashString "Genesis"
-      , blockMerkleTree = constructMerkleTree ["Genesis Block"]
-      }
+    go (acc, l) tx = case processTransaction l tx of
+      Right l' -> (tx : acc, l')
+      Left  _  -> (acc, l)
 
--- Validate a block
-validateBlock :: Block -> Block -> Bool
-validateBlock newBlock previousBlock = 
-  blockIndex newBlock == blockIndex previousBlock + 1 &&
-  blockPreviousHash newBlock == blockHash previousBlock
+-- Add a block received from a peer.
+addReceivedBlock :: Blockchain -> Block -> Either String Blockchain
+addReceivedBlock bc block
+  | not (verifyBlockHash block) =
+      Left "Invalid block hash"
+  | blockPreviousHash block /= blockHash (latestBlock bc) =
+      Left "Block does not link to chain tip"
+  | blockIndex block /= blockIndex (latestBlock bc) + 1 =
+      Left "Invalid block index"
+  | otherwise =
+      case validateBlock (ledger bc) block of
+        Left err -> Left $ "Tx validation failed: " ++ show err
+        Right newL -> Right bc
+          { chain       = block : chain bc
+          , ledger      = newL
+          , pendingPool = filter (`notElem` blockTransactions block)
+                            (pendingPool bc)
+          }
 
--- Add a new block to the chain
-addBlock :: Blockchain -> [String] -> Blockchain
-addBlock bc transactions =
-  let prevBlock = head (chain bc)
-      newIndex = blockIndex prevBlock + 1
-      timestamp = 0  -- In a real implementation, use current time
-      minedBlock = mineBlock (Block
-        { blockIndex = newIndex
-        , blockTimestamp = timestamp
-        , blockTransactions = transactions
-        , blockPreviousHash = blockHash prevBlock
-        , blockNonce = 0
-        , blockHash = ""
-        , blockMerkleTree = constructMerkleTree transactions
-        }) (difficulty bc)
-  in bc { chain = minedBlock : chain bc }
+-- Adopt a remote chain if longer and valid.
+adoptLongerChain :: Blockchain -> [Block] -> Blockchain
+adoptLongerChain bc remote
+  | length remote <= length (chain bc) = bc
+  | not (validateFullChain (genesisLedger bc) remote) = bc
+  | otherwise =
+      case foldM validateBlock (genesisLedger bc) (reverse remote) of
+        Right newL -> bc { chain = remote, ledger = newL }
+        Left _     -> bc
 
--- Mine a block until it meets difficulty requirement
-mineBlock :: Block -> Int -> Block
-mineBlock block diff =
-  let target = replicate diff '0'
-      minedBlock = mineHelper block target 0
-  in minedBlock
-
--- Helper function to mine a block
-mineHelper :: Block -> String -> Int -> Block
-mineHelper block target nonce =
-  let blockWithNonce = block { blockNonce = nonce }
-      hash = calculateBlockHash blockWithNonce
-  in if take (length target) hash == target
-       then blockWithNonce { blockHash = hash }
-       else mineHelper block target (nonce + 1)
-
--- Validate the entire blockchain
 validateChain :: Blockchain -> Bool
-validateChain bc = validateChainHelper (chain bc)
-  where
-    validateChainHelper [] = True
-    validateChainHelper [_] = True
-    validateChainHelper (x:y:xs) = validateBlock x y && validateChainHelper (y:xs)
+validateChain bc = validateFullChain (ledger bc) (chain bc)
 
--- Get the length of the blockchain
-getChainLength :: Blockchain -> Int
-getChainLength bc = length (chain bc)
+getBalance :: Blockchain -> Address -> Maybe Integer
+getBalance bc addr = accountBalance <$> Map.lookup addr (ledger bc)
 
--- Get the latest block
-getLatestBlock :: Blockchain -> Maybe Block
-getLatestBlock bc = 
-  case chain bc of
-    [] -> Nothing
-    (x:_) -> Just x
+getAccount :: Blockchain -> Address -> Maybe AccountState
+getAccount bc addr = Map.lookup addr (ledger bc)
 
--- Replace the chain if the new chain is longer and valid
-replaceChain :: Blockchain -> [Block] -> Blockchain
-replaceChain bc newChain = 
-  if length newChain > length (chain bc) && validateChain (Blockchain newChain (difficulty bc))
-    then bc { chain = newChain }
-    else bc
+chainLength :: Blockchain -> Int
+chainLength = length . chain
+
+latestBlock :: Blockchain -> Block
+latestBlock bc = case chain bc of
+  (b:_) -> b
+  []    -> genesisBlock
+
+getCurrentTimestamp :: IO Integer
+getCurrentTimestamp = round <$> getPOSIXTime

@@ -10,7 +10,7 @@ import Crypto.Error (CryptoFailable(..))
 class Key a where
   getKey :: IO a
 
--- | Get a secret from environment, optionally Base64 decoded
+-- Get a secret from environment, optionally Base64 decoded
 getDecodedSecret :: String -> B.ByteString -> IO B.ByteString
 getDecodedSecret envVar fallback = do
   mVal <- lookupEnv envVar

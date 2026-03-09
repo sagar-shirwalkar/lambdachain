@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Hash.Hash where
+module Cryptography.Hash where
 
 import qualified Crypto.Hash as H
 import qualified Data.ByteString.Char8 as B8
